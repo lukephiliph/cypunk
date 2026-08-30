@@ -11,25 +11,40 @@ import AnimatedCharacter from '../characters/AnimatedCharacter';
 
 const MOVE_SPEED = 5;
 const JUMP_FORCE = 6.5;
+const NETWORK_UPDATE_INTERVAL = 100;
+
+const CAMERA_DISTANCE = 6;
+const CAMERA_HEIGHT = 2.6;
+const MOUSE_SENSITIVITY = 0.0025;
 
 type ThirdPersonControllerProps = {
   characterId: string;
+  socket: WebSocket | null;
 };
 
 export default function ThirdPersonController({
   characterId,
+  socket,
 }: ThirdPersonControllerProps) {
   const bodyRef = useRef<RapierRigidBody>(null);
   const avatarRef = useRef<THREE.Group>(null);
-  const keys = useRef<Record<string, boolean>>({});
 
-  const { camera } = useThree();
+  const keys = useRef<Record<string, boolean>>({});
+  const lastNetworkUpdate = useRef(0);
+
+  const yaw = useRef(0);
+  const pitch = useRef(-0.15);
+
+  const { camera, gl } = useThree();
 
   const [isMoving, setIsMoving] = useState(false);
 
   /*
-   * Keyboard controls
+   * --------------------------------------------------
+   * KEYBOARD INPUT
+   * --------------------------------------------------
    */
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       keys.current[event.code] = true;
@@ -49,8 +64,61 @@ export default function ThirdPersonController({
   }, []);
 
   /*
-   * Jump
+   * --------------------------------------------------
+   * MOUSE LOOK
+   * --------------------------------------------------
    */
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const handleClick = () => {
+      if (document.pointerLockElement !== canvas) {
+        canvas.requestPointerLock();
+      }
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (document.pointerLockElement !== canvas) {
+        return;
+      }
+
+      yaw.current -=
+        event.movementX * MOUSE_SENSITIVITY;
+
+      pitch.current -=
+        event.movementY * MOUSE_SENSITIVITY;
+
+      pitch.current = THREE.MathUtils.clamp(
+        pitch.current,
+        -0.65,
+        0.45
+      );
+    };
+
+    canvas.addEventListener('click', handleClick);
+
+    document.addEventListener(
+      'mousemove',
+      handleMouseMove
+    );
+
+    return () => {
+      canvas.removeEventListener('click', handleClick);
+
+      document.removeEventListener(
+        'mousemove',
+        handleMouseMove
+      );
+    };
+  }, [gl]);
+
+  /*
+   * --------------------------------------------------
+   * JUMP
+   * --------------------------------------------------
+   */
+
   useEffect(() => {
     const handleJump = (event: KeyboardEvent) => {
       if (event.code !== 'Space') {
@@ -65,13 +133,8 @@ export default function ThirdPersonController({
 
       const velocity = body.linvel();
 
-      /*
-       * Temporary grounded check.
-       *
-       * Later we'll replace this with a proper
-       * Rapier ground raycast.
-       */
-      const isGrounded = Math.abs(velocity.y) < 0.1;
+      const isGrounded =
+        Math.abs(velocity.y) < 0.1;
 
       if (!isGrounded) {
         return;
@@ -87,16 +150,25 @@ export default function ThirdPersonController({
       );
     };
 
-    window.addEventListener('keydown', handleJump);
+    window.addEventListener(
+      'keydown',
+      handleJump
+    );
 
     return () => {
-      window.removeEventListener('keydown', handleJump);
+      window.removeEventListener(
+        'keydown',
+        handleJump
+      );
     };
   }, []);
 
   /*
-   * Game loop
+   * --------------------------------------------------
+   * GAME LOOP
+   * --------------------------------------------------
    */
+
   useFrame(() => {
     const body = bodyRef.current;
     const avatar = avatarRef.current;
@@ -110,6 +182,24 @@ export default function ThirdPersonController({
 
     /*
      * --------------------------------------------------
+     * CAMERA-RELATIVE DIRECTIONS
+     * --------------------------------------------------
+     */
+
+    const forward = new THREE.Vector3(
+      -Math.sin(yaw.current),
+      0,
+      -Math.cos(yaw.current)
+    );
+
+    const right = new THREE.Vector3(
+      Math.cos(yaw.current),
+      0,
+      -Math.sin(yaw.current)
+    );
+
+    /*
+     * --------------------------------------------------
      * PLAYER INPUT
      * --------------------------------------------------
      */
@@ -117,26 +207,24 @@ export default function ThirdPersonController({
     const input = new THREE.Vector3();
 
     if (keys.current['KeyW']) {
-      input.z -= 1;
+      input.add(forward);
     }
 
     if (keys.current['KeyS']) {
-      input.z += 1;
+      input.sub(forward);
     }
 
     if (keys.current['KeyA']) {
-      input.x -= 1;
+      input.sub(right);
     }
 
     if (keys.current['KeyD']) {
-      input.x += 1;
+      input.add(right);
     }
 
-    const moving = input.lengthSq() > 0;
+    const moving =
+      input.lengthSq() > 0;
 
-    /*
-     * Only update React state when movement state changes.
-     */
     if (moving !== isMoving) {
       setIsMoving(moving);
     }
@@ -160,19 +248,17 @@ export default function ThirdPersonController({
       );
 
       /*
-       * Rotate avatar toward movement direction.
+       * Rotate visible avatar toward movement.
        */
-      const targetRotation = Math.atan2(
-        input.x,
-        input.z
-      );
+      const targetRotation =
+        Math.atan2(
+          input.x,
+          input.z
+        );
 
-      avatar.rotation.y = targetRotation;
+      avatar.rotation.y =
+        targetRotation;
     } else {
-      /*
-       * Stop horizontal movement while preserving
-       * vertical velocity for gravity/jumping.
-       */
       body.setLinvel(
         {
           x: 0,
@@ -185,54 +271,113 @@ export default function ThirdPersonController({
 
     /*
      * --------------------------------------------------
+     * MULTIPLAYER NETWORK UPDATE
+     * --------------------------------------------------
+     */
+
+    const now =
+      performance.now();
+
+    if (
+      socket &&
+      socket.readyState === WebSocket.OPEN &&
+      now - lastNetworkUpdate.current >=
+        NETWORK_UPDATE_INTERVAL
+    ) {
+      const currentPosition =
+        body.translation();
+
+      socket.send(
+        JSON.stringify({
+          type: 'player_move',
+
+          character_id: characterId,
+
+          position: {
+            x: currentPosition.x,
+            y: currentPosition.y,
+            z: currentPosition.z,
+          },
+
+          rotation:
+            avatar.rotation.y,
+        })
+      );
+
+      lastNetworkUpdate.current =
+        now;
+    }
+
+    /*
+     * --------------------------------------------------
      * THIRD-PERSON CAMERA
      * --------------------------------------------------
      */
 
-    const cameraTarget = new THREE.Vector3(
-      position.x,
-      position.y + 0.8,
-      position.z
-    );
+    const horizontalDistance =
+      CAMERA_DISTANCE *
+      Math.cos(pitch.current);
 
-    const desiredCameraPosition = new THREE.Vector3(
-      position.x,
-      position.y + 3,
-      position.z + 6
-    );
+    const verticalDistance =
+      CAMERA_DISTANCE *
+      Math.sin(pitch.current);
+
+    const desiredCameraPosition =
+      new THREE.Vector3(
+        position.x +
+          Math.sin(yaw.current) *
+            horizontalDistance,
+
+        position.y +
+          CAMERA_HEIGHT +
+          verticalDistance,
+
+        position.z +
+          Math.cos(yaw.current) *
+            horizontalDistance
+      );
 
     /*
-     * Smooth camera movement.
+     * Smooth follow.
      */
     camera.position.lerp(
       desiredCameraPosition,
-      0.08
+      0.15
     );
 
-    camera.lookAt(cameraTarget);
+    /*
+     * Keep player roughly center-screen.
+     */
+    camera.lookAt(
+      position.x,
+      position.y + 1.1,
+      position.z
+    );
   });
+
+  /*
+   * --------------------------------------------------
+   * PLAYER
+   * --------------------------------------------------
+   */
 
   return (
     <RigidBody
       ref={bodyRef}
       position={[0, 2, 6]}
       colliders={false}
-      enabledRotations={[false, false, false]}
+      enabledRotations={[
+        false,
+        false,
+        false,
+      ]}
       friction={0}
       linearDamping={0}
     >
-      {/*
-       * Physical player collider.
-       */}
-      <CapsuleCollider args={[0.6, 0.35]} />
+      <CapsuleCollider
+        args={[0.6, 0.35]}
+      />
 
-      {/*
-       * Visible player character.
-       *
-       * The GLB model lives inside this group so
-       * we can rotate the visual character without
-       * rotating the physics body.
-       */}
       <group
         ref={avatarRef}
         position={[0, -0.95, 0]}

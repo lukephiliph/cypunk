@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.players import router as players_router
 
+from app.websocket.world import router as world_router
 app = FastAPI(
     title="Cyberdane API",
     version="0.1.0",
@@ -19,7 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(players_router)
-
+app.include_router(world_router)
 
 @app.get("/")
 def root():
