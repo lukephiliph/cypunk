@@ -91,10 +91,16 @@ export default function PlayerController() {
     );
 
     camera.position.set(
-      position.x,
-      position.y + 0.65,
-      position.z
-    );
+  position.x,
+  position.y + 2,
+  position.z + 5
+);
+
+camera.lookAt(
+  position.x,
+  position.y + 0.8,
+  position.z
+);
   });
 
   const jump = () => {
@@ -132,19 +138,31 @@ export default function PlayerController() {
     };
   }, []);
 
-  return (
-    <>
-      <RigidBody
-        ref={bodyRef}
-        position={[0, 2, 6]}
-        colliders={false}
-        enabledRotations={[false, false, false]}
-        friction={0}
-      >
-        <CapsuleCollider args={[0.6, 0.35]} />
-      </RigidBody>
+ return (
+  <>
+    <RigidBody
+      ref={bodyRef}
+      position={[0, 2, 6]}
+      colliders={false}
+      enabledRotations={[false, false, false]}
+      friction={0}
+    >
+      <CapsuleCollider args={[0.6, 0.35]} />
 
-      <PointerLockControls />
-    </>
-  );
+      <group position={[0, -0.95, 0]}>
+        <mesh position={[0, 0.8, 0]}>
+          <capsuleGeometry args={[0.35, 0.8, 8, 16]} />
+          <meshStandardMaterial color="#6366f1" />
+        </mesh>
+
+        <mesh position={[0, 1.65, 0]}>
+          <sphereGeometry args={[0.28, 24, 24]} />
+          <meshStandardMaterial color="#f1c27d" />
+        </mesh>
+      </group>
+    </RigidBody>
+
+    <PointerLockControls />
+  </>
+);
 }

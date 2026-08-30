@@ -2,21 +2,30 @@ import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 
 import CyberdaneScene from './CyberdaneScene';
-import PlayerController from './PlayerController';
+import ThirdPersonController from './ThirdPersonController';
 import GameUI from './GameUI';
 
-export default function Game() {
+type GameProps = {
+  characterId: string;
+};
+
+export default function Game({
+  characterId,
+}: GameProps) {
   return (
     <>
       <Canvas
         camera={{
-          position: [0, 1.7, 6],
-          fov: 70,
+          position: [0, 5, 10],
+          fov: 60,
         }}
       >
         <Physics gravity={[0, -20, 0]}>
           <CyberdaneScene />
-          <PlayerController />
+
+          <ThirdPersonController
+            characterId={characterId}
+          />
         </Physics>
       </Canvas>
 
