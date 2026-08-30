@@ -1,37 +1,61 @@
-
-import { OrbitControls } from '@react-three/drei';
+import { CuboidCollider, RigidBody } from '@react-three/rapier';
 
 export default function CyberdaneScene() {
   return (
     <>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={0.6} />
 
       <directionalLight
-        position={[10, 10, 5]}
+        position={[10, 15, 10]}
         intensity={1.5}
       />
 
-      <mesh position={[0, -0.5, 0]}>
-        <boxGeometry args={[20, 1, 20]} />
-        <meshStandardMaterial color="#2d2d2d" />
-      </mesh>
+      {/* Ground */}
+      <RigidBody type="fixed" colliders={false}>
+        <mesh position={[0, -0.5, 0]}>
+          <boxGeometry args={[40, 1, 40]} />
+          <meshStandardMaterial color="#242424" />
+        </mesh>
 
-      <mesh position={[0, 1, 0]}>
-        <boxGeometry args={[2, 2, 2]} />
-        <meshStandardMaterial color="#4f46e5" />
-      </mesh>
+        <CuboidCollider
+          args={[20, 0.5, 20]}
+          position={[0, -0.5, 0]}
+        />
+      </RigidBody>
 
-      <mesh position={[-5, 2, -4]}>
-        <boxGeometry args={[3, 5, 3]} />
-        <meshStandardMaterial color="#555555" />
-      </mesh>
+      {/* Center block */}
+      <RigidBody type="fixed" colliders="cuboid">
+        <mesh position={[0, 1, -5]}>
+          <boxGeometry args={[2, 2, 2]} />
+          <meshStandardMaterial color="#4f46e5" />
+        </mesh>
+      </RigidBody>
 
-      <mesh position={[5, 3, -4]}>
-        <boxGeometry args={[4, 7, 3]} />
-        <meshStandardMaterial color="#3f3f46" />
-      </mesh>
+      {/* Building 1 */}
+      <RigidBody type="fixed" colliders="cuboid">
+        <mesh position={[-6, 2.5, -8]}>
+          <boxGeometry args={[4, 5, 4]} />
+          <meshStandardMaterial color="#555555" />
+        </mesh>
+      </RigidBody>
 
-      <OrbitControls />
+      {/* Building 2 */}
+      <RigidBody type="fixed" colliders="cuboid">
+        <mesh position={[6, 4, -8]}>
+          <boxGeometry args={[5, 8, 4]} />
+          <meshStandardMaterial color="#3f3f46" />
+        </mesh>
+      </RigidBody>
+
+      {/* Small structure */}
+      <RigidBody type="fixed" colliders="cuboid">
+        <mesh position={[5, 1, 3]}>
+          <boxGeometry args={[3, 2, 3]} />
+          <meshStandardMaterial color="#374151" />
+        </mesh>
+      </RigidBody>
+
+      <gridHelper args={[40, 40]} />
     </>
   );
 }

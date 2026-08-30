@@ -1,16 +1,35 @@
-
 import { Canvas } from '@react-three/fiber';
-import CyberdaneScene from './CyberdaneScene';
+import { Physics } from '@react-three/rapier';
 
-export default function Game() {
+import CyberdaneScene from './CyberdaneScene';
+import ThirdPersonController from './ThirdPersonController';
+import GameUI from './GameUI';
+
+type GameProps = {
+  characterId: string;
+};
+
+export default function Game({
+  characterId,
+}: GameProps) {
   return (
-    <Canvas
-      camera={{
-        position: [8, 8, 12],
-        fov: 60,
-      }}
-    >
-      <CyberdaneScene />
-    </Canvas>
+    <>
+      <Canvas
+        camera={{
+          position: [0, 5, 10],
+          fov: 60,
+        }}
+      >
+        <Physics gravity={[0, -20, 0]}>
+          <CyberdaneScene />
+
+          <ThirdPersonController
+            characterId={characterId}
+          />
+        </Physics>
+      </Canvas>
+
+      <GameUI />
+    </>
   );
 }
