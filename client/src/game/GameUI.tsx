@@ -1,19 +1,32 @@
+import { useEffect, useState } from 'react';
+
+import { getHealth } from '../api/backend';
+
 export default function GameUI() {
+  const [backendStatus, setBackendStatus] =
+    useState('checking...');
+
+  useEffect(() => {
+    getHealth()
+      .then((data) => {
+        setBackendStatus(data.status);
+      })
+      .catch(() => {
+        setBackendStatus('offline');
+      });
+  }, []);
+
   return (
     <>
       <div className="instructions">
-        Click inside the world
+        WASD - Move
         <br />
-        WASD — Move
-        <br />
-        Mouse — Look
-        <br />
-        Space — Jump
-        <br />
-        Esc — Release mouse
+        Space - Jump
       </div>
 
-      <div className="crosshair">+</div>
+      <div className="backend-status">
+        Cyberdane server: {backendStatus}
+      </div>
     </>
   );
 }
