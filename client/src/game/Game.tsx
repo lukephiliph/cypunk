@@ -7,10 +7,12 @@ import GameUI from './GameUI';
 
 type GameProps = {
   characterId: string;
+  playerId: string;
 };
 
 export default function Game({
   characterId,
+  playerId,
 }: GameProps) {
   return (
     <>
@@ -29,7 +31,7 @@ export default function Game({
         </Physics>
       </Canvas>
 
-      <GameUI />
+      <GameUI playerId={playerId} />
     </>
   );
 }

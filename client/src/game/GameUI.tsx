@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 
 import { getHealth } from '../api/backend';
 
-export default function GameUI() {
+type GameUIProps = {
+  playerId: string;
+};
+
+export default function GameUI({
+  playerId,
+}: GameUIProps) {
   const [backendStatus, setBackendStatus] =
     useState('checking...');
 
@@ -25,7 +31,9 @@ export default function GameUI() {
       </div>
 
       <div className="backend-status">
-        Cyberdane server: {backendStatus}
+        Server: {backendStatus}
+        <br />
+        Player: {playerId.slice(0, 8)}
       </div>
     </>
   );
