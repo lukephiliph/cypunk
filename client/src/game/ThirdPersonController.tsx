@@ -4,10 +4,10 @@ import {
   RapierRigidBody,
   RigidBody,
 } from '@react-three/rapier';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import CharacterAvatar from '../characters/CharacterAvatar';
-import { characters } from '../characters/characterData';
+
+import AnimatedCharacter from '../characters/AnimatedCharacter';
 
 const MOVE_SPEED = 5;
 const JUMP_FORCE = 6.5;
@@ -16,50 +16,138 @@ type ThirdPersonControllerProps = {
   characterId: string;
 };
 
-export default function ThirdPersonController({characterId,}: ThirdPersonControllerProps){
+export default function ThirdPersonController({
+  characterId,
+}: ThirdPersonControllerProps) {
   const bodyRef = useRef<RapierRigidBody>(null);
   const avatarRef = useRef<THREE.Group>(null);
   const keys = useRef<Record<string, boolean>>({});
-    const character =
-  characters.find((item) => item.id === characterId) ??
-  characters[0];
+
   const { camera } = useThree();
 
+  const [isMoving, setIsMoving] = useState(false);
+
+  /*
+   * Keyboard controls
+   */
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       keys.current[event.code] = true;
     };
 
-    const onKeyUp = (event: KeyboardEvent) => {
+    const handleKeyUp = (event: KeyboardEvent) => {
       keys.current[event.code] = false;
     };
 
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
 
+  /*
+   * Jump
+   */
+  useEffect(() => {
+    const handleJump = (event: KeyboardEvent) => {
+      if (event.code !== 'Space') {
+        return;
+      }
+
+      const body = bodyRef.current;
+
+      if (!body) {
+        return;
+      }
+
+      const velocity = body.linvel();
+
+      /*
+       * Temporary grounded check.
+       *
+       * Later we'll replace this with a proper
+       * Rapier ground raycast.
+       */
+      const isGrounded = Math.abs(velocity.y) < 0.1;
+
+      if (!isGrounded) {
+        return;
+      }
+
+      body.setLinvel(
+        {
+          x: velocity.x,
+          y: JUMP_FORCE,
+          z: velocity.z,
+        },
+        true
+      );
+    };
+
+    window.addEventListener('keydown', handleJump);
+
+    return () => {
+      window.removeEventListener('keydown', handleJump);
+    };
+  }, []);
+
+  /*
+   * Game loop
+   */
   useFrame(() => {
     const body = bodyRef.current;
     const avatar = avatarRef.current;
 
-    if (!body || !avatar) return;
+    if (!body || !avatar) {
+      return;
+    }
 
     const position = body.translation();
     const velocity = body.linvel();
 
+    /*
+     * --------------------------------------------------
+     * PLAYER INPUT
+     * --------------------------------------------------
+     */
+
     const input = new THREE.Vector3();
 
-    if (keys.current['KeyW']) input.z -= 1;
-    if (keys.current['KeyS']) input.z += 1;
-    if (keys.current['KeyA']) input.x -= 1;
-    if (keys.current['KeyD']) input.x += 1;
+    if (keys.current['KeyW']) {
+      input.z -= 1;
+    }
 
-    if (input.lengthSq() > 0) {
+    if (keys.current['KeyS']) {
+      input.z += 1;
+    }
+
+    if (keys.current['KeyA']) {
+      input.x -= 1;
+    }
+
+    if (keys.current['KeyD']) {
+      input.x += 1;
+    }
+
+    const moving = input.lengthSq() > 0;
+
+    /*
+     * Only update React state when movement state changes.
+     */
+    if (moving !== isMoving) {
+      setIsMoving(moving);
+    }
+
+    /*
+     * --------------------------------------------------
+     * PLAYER MOVEMENT
+     * --------------------------------------------------
+     */
+
+    if (moving) {
       input.normalize();
 
       body.setLinvel(
@@ -71,9 +159,20 @@ export default function ThirdPersonController({characterId,}: ThirdPersonControl
         true
       );
 
-      const angle = Math.atan2(input.x, input.z);
-      avatar.rotation.y = angle;
+      /*
+       * Rotate avatar toward movement direction.
+       */
+      const targetRotation = Math.atan2(
+        input.x,
+        input.z
+      );
+
+      avatar.rotation.y = targetRotation;
     } else {
+      /*
+       * Stop horizontal movement while preserving
+       * vertical velocity for gravity/jumping.
+       */
       body.setLinvel(
         {
           x: 0,
@@ -84,9 +183,15 @@ export default function ThirdPersonController({characterId,}: ThirdPersonControl
       );
     }
 
+    /*
+     * --------------------------------------------------
+     * THIRD-PERSON CAMERA
+     * --------------------------------------------------
+     */
+
     const cameraTarget = new THREE.Vector3(
       position.x,
-      position.y + 1,
+      position.y + 0.8,
       position.z
     );
 
@@ -96,37 +201,16 @@ export default function ThirdPersonController({characterId,}: ThirdPersonControl
       position.z + 6
     );
 
-    camera.position.lerp(desiredCameraPosition, 0.08);
+    /*
+     * Smooth camera movement.
+     */
+    camera.position.lerp(
+      desiredCameraPosition,
+      0.08
+    );
+
     camera.lookAt(cameraTarget);
   });
-
-  useEffect(() => {
-    const onJump = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') return;
-
-      const body = bodyRef.current;
-      if (!body) return;
-
-      const velocity = body.linvel();
-
-      if (Math.abs(velocity.y) < 0.1) {
-        body.setLinvel(
-          {
-            x: velocity.x,
-            y: JUMP_FORCE,
-            z: velocity.z,
-          },
-          true
-        );
-      }
-    };
-
-    window.addEventListener('keydown', onJump);
-
-    return () => {
-      window.removeEventListener('keydown', onJump);
-    };
-  }, []);
 
   return (
     <RigidBody
@@ -135,20 +219,27 @@ export default function ThirdPersonController({characterId,}: ThirdPersonControl
       colliders={false}
       enabledRotations={[false, false, false]}
       friction={0}
+      linearDamping={0}
     >
+      {/*
+       * Physical player collider.
+       */}
       <CapsuleCollider args={[0.6, 0.35]} />
 
-      <group ref={avatarRef} position={[0, -0.95, 0]}>
-        <mesh position={[0, 0.8, 0]}>
-          <capsuleGeometry args={[0.35, 0.8, 8, 16]} />
-          <meshStandardMaterial color="#6366f1" />
-        </mesh>
-
-        <mesh position={[0, 1.65, 0]}>
-          <sphereGeometry args={[0.28, 24, 24]} />
-          <meshStandardMaterial color="#f1c27d" />
-        </mesh>
-         <CharacterAvatar color={character.color} />
+      {/*
+       * Visible player character.
+       *
+       * The GLB model lives inside this group so
+       * we can rotate the visual character without
+       * rotating the physics body.
+       */}
+      <group
+        ref={avatarRef}
+        position={[0, -0.95, 0]}
+      >
+        <AnimatedCharacter
+          moving={isMoving}
+        />
       </group>
     </RigidBody>
   );
